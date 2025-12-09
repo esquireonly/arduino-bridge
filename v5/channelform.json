@@ -1,7 +1,6 @@
 {
   "grid": [
-    { "id": "p1", "xs": 6, "class": "main", "table": "devhard" },
-    { "id": "p2", "xs": 6, "class": "main", "table": "devhard" }
+    { "id": "p1", "xs": 12, "class": "main", "table": "devhard" }
   ],
   "spacing": 10,
 
@@ -12,7 +11,7 @@
       "type": "input"
     },
     {
-      "prop": "note",
+      "prop": "desc",
       "title": "Описание",
       "type": "input"
     },
@@ -27,18 +26,6 @@
       "title": "Запись",
       "type": "cb",
       "default": 0
-    }
-  ],
-
-  "p2": [
-    {
-      "prop": "vartype",
-      "title": "Тип данных",
-      "type": "droplist",
-      "data": [
-        { "id": "int32", "title": "Целое число (int32)" }
-      ],
-      "default": "int32"
     }
   ]
 }
