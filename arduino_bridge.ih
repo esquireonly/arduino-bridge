@@ -1,0 +1,6 @@
+{
+  "id": "arduino_bridge",
+  "description": "Мост для связи с Arduino по Serial порту",
+  "version": "1.0.0",
+  "cross": true
+}

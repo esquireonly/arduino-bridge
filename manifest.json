@@ -1,0 +1,56 @@
+{
+  "module": "index.js",
+  "single": 0,
+  "nochannels": 0,
+  "extratab": 0,
+  "pluginfiles": 0,
+  "restartOnChannelsChange": 0,
+  "innerId": 1,
+  "comment": "Плагин для обмена данными с Arduino по Serial порту",
+
+  "validator": {
+    "main": {
+      "port": {
+        "notempty": true
+      },
+      "baudRate": {
+        "min": 9600,
+        "max": 115200
+      },
+      "pollingInterval": {
+        "min": 100,
+        "max": 10000
+      }
+    }
+  },
+
+  "channels": [
+    { "id": "R0", "chan": "R0", "r": 1, "w": 0, "desc": "Чтение 0" },
+    { "id": "R1", "chan": "R1", "r": 1, "w": 0, "desc": "Чтение 1" },
+    { "id": "R2", "chan": "R2", "r": 1, "w": 0, "desc": "Чтение 2" },
+    { "id": "R3", "chan": "R3", "r": 1, "w": 0, "desc": "Чтение 3" },
+    { "id": "W0", "chan": "W0", "r": 0, "w": 1, "desc": "Запись 0" },
+    { "id": "W1", "chan": "W1", "r": 0, "w": 1, "desc": "Запись 1" },
+    { "id": "W2", "chan": "W2", "r": 0, "w": 1, "desc": "Запись 2" },
+    { "id": "W3", "chan": "W3", "r": 0, "w": 1, "desc": "Запись 3" }
+  ],
+
+  "default_channel": {
+    "chan": "R0",
+    "r": 1,
+    "w": 0,
+    "desc": "Переменная Arduino"
+  },
+
+  "channel_folder_popup": {
+    "add": [
+      { "id": "channel", "title": "Новый канал" }
+    ],
+    "copypaste": false,
+    "delete": true
+  },
+
+  "channel_popup": {
+    "delete": true
+  }
+}

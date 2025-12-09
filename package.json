@@ -1,0 +1,12 @@
+{
+  "name": "arduino-bridge",
+  "version": "1.0.0",
+  "description": "Плагин для связи с Arduino",
+  "main": "index.js",
+  "dependencies": {
+    "serialport": "^12.0.0"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
