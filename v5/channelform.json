@@ -1,0 +1,44 @@
+{
+  "grid": [
+    { "id": "p1", "xs": 6, "class": "main", "table": "devhard" },
+    { "id": "p2", "xs": 6, "class": "main", "table": "devhard" }
+  ],
+  "spacing": 10,
+
+  "p1": [
+    {
+      "prop": "chan",
+      "title": "ID канала",
+      "type": "input"
+    },
+    {
+      "prop": "note",
+      "title": "Описание",
+      "type": "input"
+    },
+    {
+      "prop": "r",
+      "title": "Чтение",
+      "type": "cb",
+      "default": 1
+    },
+    {
+      "prop": "w",
+      "title": "Запись",
+      "type": "cb",
+      "default": 0
+    }
+  ],
+
+  "p2": [
+    {
+      "prop": "vartype",
+      "title": "Тип данных",
+      "type": "droplist",
+      "data": [
+        { "id": "int32", "title": "Целое число (int32)" }
+      ],
+      "default": "int32"
+    }
+  ]
+}

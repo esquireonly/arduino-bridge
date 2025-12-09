@@ -1,0 +1,63 @@
+{
+  "grid": [
+    { "id": "p1", "xs": 6, "class": "main", "table": "units" },
+    { "id": "p2", "xs": 6, "class": "main", "table": "units" }
+  ],
+  "spacing": 10,
+
+  "p1": [
+    {
+      "prop": "port",
+      "title": "COM порт",
+      "type": "droplist",
+      "data": "__tool.comports",
+      "default": "COM3"
+    },
+    {
+      "prop": "baudRate",
+      "title": "Скорость (бод)",
+      "type": "droplist",
+      "default": 115200,
+      "data": [
+        {"id": 9600, "title": "9600"},
+        {"id": 19200, "title": "19200"},
+        {"id": 38400, "title": "38400"},
+        {"id": 57600, "title": "57600"},
+        {"id": 115200, "title": "115200"}
+      ]
+    },
+    {
+      "prop": "pollingInterval",
+      "title": "Интервал опроса (мс)",
+      "type": "input",
+      "default": 1000
+    }
+  ],
+
+  "p2": [
+    {
+      "prop": "loglevel",
+      "title": "Уровень логирования",
+      "type": "droplist",
+      "data": "loglevelList"
+    },
+    {
+      "prop": "restarttime",
+      "title": "Время рестарта (сек)",
+      "type": "input",
+      "default": 5
+    },
+    {
+      "prop": "logsize",
+      "title": "Размер лога (KB)",
+      "type": "input",
+      "default": 500
+    },
+    {
+      "prop": "logrotate",
+      "title": "Архивных файлов",
+      "type": "input",
+      "default": 3
+    }
+  ]
+}
