@@ -14,6 +14,17 @@
       "default": "COM3"
     },
     {
+      "prop": "debug",
+      "title": "Debug",
+      "type": "droplist",
+      "default": "on",
+      "data": [
+        {"id":"on", "title": "on"},
+        {"id":"off", "title": "off"}
+      ],
+      "default": "COM3"
+    },
+    {
       "prop": "baudRate",
       "title": "Скорость (бод)",
       "type": "droplist",

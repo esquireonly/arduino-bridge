@@ -5,7 +5,7 @@
   "extratab": 0,
   "pluginfiles": 0,
   "restartOnChannelsChange": 0,
-  "innerId": 1,
+  "innerId": 0,
   "comment": "Плагин для обмена данными с Arduino по Serial порту",
 
   "validator": {

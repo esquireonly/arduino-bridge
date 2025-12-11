@@ -1,10 +1,18 @@
 const { SerialPort } = require('serialport');
+const { ReadlineParser } = require('@serialport/parser-readline');
 
 module.exports = async function(plugin) {
-    plugin.log('=== Arduino Bridge Plugin ===');
+    plugin.log('=== Arduino Bridge Plugin START ===');
 
     let port = null;
+    let parser = null;
     let isConnected = false;
+    let pollTimer = null;
+
+    const channelValues = {
+        R0: 0, R1: 0, R2: 0, R3: 0,
+        W0: 0, W1: 0, W2: 0, W3: 0
+    };
 
     try {
         const params = plugin.params.data || {};
@@ -12,196 +20,109 @@ module.exports = async function(plugin) {
         const baudRate = params.baudRate || 115200;
         const pollingInterval = params.pollingInterval || 1000;
 
-        plugin.log(`Подключение: ${portName}, ${baudRate} бод, интервал: ${pollingInterval}мс`);
+        plugin.log(`Конфигурация: ${portName} @ ${baudRate} бод, опрос каждые ${pollingInterval}мс`);
 
-        // 1. СОЗДАНИЕ КАНАЛОВ
-        async function createChannels() {
-            try {
-                plugin.log('Проверка каналов...');
-                const channels = await plugin.channels.get();
-
-                if (!channels || channels.length === 0) {
-                    plugin.log('Каналы отсутствуют, создаю...');
-
-                    const newChannels = [
-                        { id: 'R0', chan: 'R0', r: 1, w: 0, desc: 'Чтение 0' },
-                        { id: 'R1', chan: 'R1', r: 1, w: 0, desc: 'Чтение 1' },
-                        { id: 'R2', chan: 'R2', r: 1, w: 0, desc: 'Чтение 2' },
-                        { id: 'R3', chan: 'R3', r: 1, w: 0, desc: 'Чтение 3' },
-                        { id: 'W0', chan: 'W0', r: 0, w: 1, desc: 'Запись 0' },
-                        { id: 'W1', chan: 'W1', r: 0, w: 1, desc: 'Запись 1' },
-                        { id: 'W2', chan: 'W2', r: 0, w: 1, desc: 'Запись 2' },
-                        { id: 'W3', chan: 'W3', r: 0, w: 1, desc: 'Запись 3' }
-                    ];
-
-                    plugin.send({
-                        type: 'channels',
-                        op: 'add',
-                        data: newChannels
-                    });
-
-                    plugin.log(`✅ Создано ${newChannels.length} каналов`);
-                } else {
-                    plugin.log(`✓ Каналы уже существуют: ${channels.length} шт`);
-                    // Лог первых 4 каналов для проверки
-                    channels.slice(0, 4).forEach(ch => {
-                        plugin.log(`  - ${ch.id}: r=${ch.r}, w=${ch.w}, value=${ch.value}`);
-                    });
-                }
-            } catch (err) {
-                plugin.log(`❌ Ошибка создания каналов: ${err.message}`, 'error');
-            }
-        }
-
-        await createChannels();
-
-        // 2. ПОДКЛЮЧЕНИЕ К ARDUINO
+        // ПОДКЛЮЧЕНИЕ К ARDUINO
         port = new SerialPort({
             path: portName,
             baudRate: baudRate,
             autoOpen: false
         });
 
+        parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
+
+
+        plugin.log(`[Setting Interval]`);
+        pollTimer = setInterval(pollArduino, pollingInterval);
+        setTimeout(pollArduino, 1000);
+
         await new Promise((resolve, reject) => {
+            plugin.log('[object Promise]');
             port.open((err) => {
                 if (err) {
-                    plugin.log(`Ошибка открытия порта: ${err.message}`, 'error');
+                    plugin.log(`❌ Ошибка открытия ${portName}: ${err.message}`, 'error');
                     reject(err);
-                    return;
+                } else {
+                    isConnected = true;
+                    plugin.log(`✅ Подключено к ${portName}`);
+                    resolve();
                 }
-                isConnected = true;
-                plugin.log(`✅ Подключено к Arduino`);
-                resolve();
             });
         });
 
-        // 3. ОБРАБОТКА ДАННЫХ ОТ ARDUINO С ДИАГНОСТИКОЙ
-        port.on('data', (data) => {
-            const text = data.toString().trim();
-            if (text) {
-                plugin.log(`📨 Arduino RAW: "${text}"`);
+        // ОБРАБОТКА ДАННЫХ ОТ ARDUINO
+        parser.on('data', (line) => {
+            const text = line.trim();
+            if (!text) return;
 
-                // Парсинг ответа
-                if (text.includes(',')) {
-                    const values = text.split(',').map(v => {
-                        const parsed = parseInt(v.trim());
-                        return isNaN(parsed) ? 0 : parsed;
+            /*plugin.log(`Arduino << ${text}`);*/
+
+            // Парсинг формата: "R0,R1,R2,R3,W0,W1,W2,W3"
+            if (text.includes(',')) {
+                const parts = text.split(',');
+
+                if (parts.length === 8) {
+                    const values = parts.map(v => {
+                        const num = parseInt(v.trim());
+                        return isNaN(num) ? 0 : num;
                     });
 
-                    plugin.log(`🔢 Парсинг: [${values.join(', ')}] (${values.length} значений)`);
+                    // Обновление локальных значений
+                    channelValues.R0 = values[0];
+                    channelValues.R1 = values[1];
+                    channelValues.R2 = values[2];
+                    channelValues.R3 = values[3];
+                    /*channelValues.W0 = values[4];
+                    channelValues.W1 = values[5];
+                    channelValues.W2 = values[6];
+                    channelValues.W3 = values[7];*/
 
-                    if (values.length === 8) {
-                        // ДИАГНОСТИКА: что отправляем
-                        plugin.log(`🚀 Отправка в SCADA:`);
-                        plugin.log(`   R0 = ${values[0]}`);
-                        plugin.log(`   R1 = ${values[1]}`);
-                        plugin.log(`   R2 = ${values[2]}`);
-                        plugin.log(`   R3 = ${values[3]}`);
-
-                        // Отправка данных в SCADA
-                        try {
-                            plugin.sendData([
-                                { id: 'R0', value: values[0], ts: Date.now(), chstatus: 0 },
-                                { id: 'R1', value: values[1], ts: Date.now(), chstatus: 0 },
-                                { id: 'R2', value: values[2], ts: Date.now(), chstatus: 0 },
-                                { id: 'R3', value: values[3], ts: Date.now(), chstatus: 0 }
-                            ]);
-                            plugin.log(`✅ sendData() вызван для R0-R3`);
-                        } catch (err) {
-                            plugin.log(`❌ Ошибка sendData: ${err.message}`, 'error');
-                        }
-                    } else {
-                        plugin.log(`⚠️ Неверное количество значений: ${values.length} (ожидается 8)`);
-                    }
+                    // ОТПРАВКА В SCADA
+                    sendToScada();
                 } else {
-                    plugin.log(`📝 Текстовый ответ: ${text}`);
+                    plugin.log(`⚠️ Неверный формат: ${parts.length} значений (ожидается 8)`);
                 }
             }
         });
 
+
+
+        // ОБРАБОТКА ОШИБОК ПОРТА
         port.on('error', (err) => {
-            plugin.log(`Ошибка порта: ${err.message}`, 'error');
+            plugin.log(`❌ Ошибка порта: ${err.message}`, 'error');
+            plugin.sendLog({
+                txt: `Ошибка COM-порта: ${err.message}`,
+                level: 2
+            });
             isConnected = false;
         });
 
         port.on('close', () => {
-            plugin.log('Порт закрыт');
+            plugin.log('⚠️ Порт закрыт');
+            plugin.sendLog({
+                txt: 'COM-порт закрыт',
+                level: 1
+            });
             isConnected = false;
         });
 
-        // 4. АВТООПРОС ARDUINO
-        async function pollArduino() {
-            if (!isConnected) return;
-
-            try {
-                // Запрос значений W0-W3 у SCADA
-                const channels = await plugin.channels.get();
-                const writeValues = { W0: 0, W1: 0, W2: 0, W3: 0 };
-
-                if (channels && Array.isArray(channels)) {
-                    channels.forEach(ch => {
-                        if (ch.id && ch.id.startsWith('W') && ch.value !== undefined) {
-                            writeValues[ch.id] = ch.value;
-                        }
-                    });
-                }
-
-                // Отправка команд в Arduino
-                port.write('GET\n');
-                plugin.log('📤 Отправка: GET');
-
-                for (let i = 0; i < 4; i++) {
-                    const cmd = `W${i}=${writeValues[`W${i}`]}\n`;
-                    port.write(cmd);
-                    plugin.log(`📤 Отправка: ${cmd.trim()}`);
-                    await sleep(50);
-                }
-
-            } catch (err) {
-                plugin.log(`Ошибка опроса: ${err.message}`, 'error');
-            }
-        }
-
-        // Запуск периодического опроса
-        const pollInterval = setInterval(pollArduino, pollingInterval);
-
-        // Первый опрос
-        setTimeout(pollArduino, 500);
-
-        // 5. ТЕСТОВАЯ ФУНКЦИЯ
-        async function testSendManual() {
-            plugin.log('🔧 ТЕСТ: Ручная отправка данных');
-
-            const testData = [
-                { id: 'R0', value: 100, ts: Date.now(), chstatus: 0 },
-                { id: 'R1', value: 200, ts: Date.now(), chstatus: 0 },
-                { id: 'R2', value: 300, ts: Date.now(), chstatus: 0 },
-                { id: 'R3', value: 400, ts: Date.now(), chstatus: 0 }
-            ];
-
-            try {
-                plugin.sendData(testData);
-                plugin.log('✅ Тестовые данные отправлены');
-            } catch (err) {
-                plugin.log(`❌ Ошибка теста: ${err.message}`, 'error');
-            }
-        }
-
-        // 6. ОБРАБОТКА КОМАНД
-        plugin.on('command', (cmd) => {
-            plugin.log(`Получена команда: ${JSON.stringify(cmd)}`);
-
-            if (cmd === 'test') {
-                testSendManual();
-            }
-        });
-
-        // 7. ЗАВЕРШЕНИЕ РАБОТЫ
+        // ЗАВЕРШЕНИЕ РАБОТЫ
         const cleanup = () => {
-            clearInterval(pollInterval);
-            if (port) {
-                port.close();
-                plugin.log('Соединение закрыто');
+            plugin.log('🛑 Остановка плагина...');
+
+            if (pollTimer) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+
+            if (port && port.isOpen) {
+                port.close((err) => {
+                    if (err) {
+                        plugin.log(`Ошибка закрытия порта: ${err.message}`, 'error');
+                    } else {
+                        plugin.log('Порт закрыт');
+                    }
+                });
             }
         };
 
@@ -212,13 +133,83 @@ module.exports = async function(plugin) {
             plugin.on('exit', cleanup);
         }
 
+        plugin.sendLog('Arduino Bridge Plugin успешно запущен');
+        // ФУНКЦИЯ ОТПРАВКИ ДАННЫХ В SCADA
+
+        function sendToScada() {
+
+            const ts = Date.now();
+
+            const data = [
+                { id: 'R0', value: channelValues.R0, ts, chstatus: 0 },
+                { id: 'R1', value: channelValues.R1, ts, chstatus: 0 },
+                { id: 'R2', value: channelValues.R2, ts, chstatus: 0 },
+                { id: 'R3', value: channelValues.R3, ts, chstatus: 0 },
+                { id: 'W0', value: channelValues.W0, ts, chstatus: 0 },
+                { id: 'W1', value: channelValues.W1, ts, chstatus: 0 },
+                { id: 'W2', value: channelValues.W2, ts, chstatus: 0 },
+                { id: 'W3', value: channelValues.W3, ts, chstatus: 0 },
+            ];
+
+            plugin.sendData(data);
+
+            // Логирование в журнал плагинов
+            plugin.sendLog({
+                txt: `Получены данные: R0=${channelValues.R0}, R1=${channelValues.R1}, R2=${channelValues.R2}, R3=${channelValues.R3}`,
+                level: 0
+            });
+        }
+
+        // АВТООПРОС ARDUINO
+        async function pollArduino() {
+            if (!isConnected || !port || !port.isOpen) return;
+
+            try {
+                plugin.onAct(message => {
+                    plugin.log(message.data);
+                });
+                // Получить текущие значения W0-W3 из SCADA
+                const channels = await plugin.channels.get();
+                if (channels && Array.isArray(channels)) {
+                    channels.forEach(ch => {
+                        plugin.log(`Канал ${ch.id}  ${ch.value} ${ch.w}`);
+                        if (ch.id && ch.id.startsWith('W') && ch.value !== undefined) {
+                            channelValues[ch.id] = ch.value;
+                        }
+                    });
+                }
+
+                // Отправка GET в Arduino
+                port.write('GET\n');
+                /*plugin.log(`Arduino >> GET`);*/
+
+                // Отправка значений W0-W3 в Arduino
+                for (let i = 0; i < 4; i++) {
+                    await sleep(50);
+                    const cmd = `W${i}=${channelValues['W' + i]}\n`;
+                    port.write(cmd);
+                    /*plugin.log(`Arduino >> ${cmd.trim()}`);*/
+                }
+
+            } catch (err) {
+                plugin.log(`Ошибка опроса: ${err.message}`, 'error');
+                plugin.sendLog({
+                    txt: `Ошибка опроса Arduino: ${err.message}`,
+                    level: 2
+                });
+            }
+        }
+
     } catch (err) {
-        plugin.log(`Ошибка инициализации: ${err.message}`, 'error');
+        plugin.log(`КРИТИЧЕСКАЯ ОШИБКА: ${err.message}`, 'error');
+        plugin.sendLog({
+            txt: `Критическая ошибка: ${err.message}`,
+            level: 2
+        });
         plugin.exit(1, `Arduino plugin failed: ${err.message}`);
     }
 };
 
-// Вспомогательная функция
 function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
